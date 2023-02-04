@@ -6,51 +6,48 @@ from Crypto.Util.Padding import unpad
 with open("./data/preCalc.bin", "rb") as f:
     preDatab = f.read()
 
-preData = dict()
+encryptedZeroBytes = dict()
 ind = 0
 while ind < len(preDatab):
-    preData[preDatab[ind+16:ind+32]] = preDatab[ind:ind+16]
+    encryptedZeroBytes[preDatab[ind+16:ind+32]] = preDatab[ind:ind+16]
     ind += 32
 
 zipList = list(pathlib.Path("./LINE_Backup").glob("*.zip"))
 
-for i in zipList:
-    fileName = str(i.name).replace(".zip", "").replace("LINE_Android-backup-", "")
-    print(fileName)
+for targetZipFile in zipList:
+    chatID = str(targetZipFile.name).replace(".zip", "").replace("LINE_Android-backup-", "")
+    print(chatID)
+
     try:
-        shutil.unpack_archive(str(i), "./output/" + fileName)
+        shutil.unpack_archive(str(targetZipFile), "./output/" + chatID)
     except ValueError:
         continue
     
-    for j in list(pathlib.Path("./output/" + fileName + "/linebackup/image").glob("*")):
+    for j in list(pathlib.Path("./output/" + chatID + "/linebackup/image").glob("*")):
         if not '.thumb' in str(j.name):
             j.rename(str(j) + ".jpg")
 
-    with open("./output/" + fileName + "/linebackup/chat/" + fileName, "rb") as f:
+    with open("./output/" + chatID + "/linebackup/chat/" + chatID, "rb") as f:
         encryptedChat = f.read()
 
-    with open("./output/" + fileName + "/linebackup/chat/" + fileName + ".extra", "r") as f:
+    with open("./output/" + chatID + "/linebackup/chat/" + chatID + ".extra", "r") as f:
         extraData = f.read()
 
     extraData = list(map(int, extraData.split(",")))
-    decryptedChat = b""
-    zeroBytesList = [encryptedChat[0:16], encryptedChat[16:32], encryptedChat[32:48]]
+    zeroBytesSearch = [encryptedChat[0:16], encryptedChat[16:32], encryptedChat[32:48]]
     ind = 48
-    while (not (zeroBytesList[0] == zeroBytesList[1] and zeroBytesList[0] == zeroBytesList[2])):
-        zeroBytesList.pop(0)
-        zeroBytesList.append(encryptedChat[ind:ind+16])
+    while (not (zeroBytesSearch[0] == zeroBytesSearch[1] and zeroBytesSearch[0] == zeroBytesSearch[2])):
+        zeroBytesSearch.pop(0)
+        zeroBytesSearch.append(encryptedChat[ind:ind+16])
         ind += 16
 
-    for j in preData.keys():
-        if j[:2] == "64":
-            print(j)
-    cipher = AES.new(preData[zeroBytesList[0]],AES.MODE_ECB)
+    decryptedChat = b""
+    cipher = AES.new(encryptedZeroBytes[zeroBytesSearch[0]],AES.MODE_ECB)
     ind = 0
     for j in extraData:
-        #print(cipher.decrypt(encryptedChat[ind:ind+j]))
         decryptedChat += unpad(cipher.decrypt(encryptedChat[ind:ind+j]), 16)
         ind += j
     
-    with open("./output/" + fileName + "/linebackup/chat/" + fileName + ".sqlite", "wb") as f:
+    with open("./output/" + chatID + "/linebackup/chat/" + chatID + ".sqlite", "wb") as f:
         f.write(decryptedChat)
 
